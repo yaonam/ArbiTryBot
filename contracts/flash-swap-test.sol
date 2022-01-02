@@ -12,9 +12,11 @@ import '@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol';
 import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
 import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
 
-contract PairFlash is IUniswapV3FlashCallback, PeripheryPayments {
+contract PairFlashTest is IUniswapV3FlashCallback, PeripheryPayments {
     using LowGasSafeMath for uint256;
     using LowGasSafeMath for int256;
+
+    event debug(string indexed description);
 
     ISwapRouter public immutable swapRouter;
 
@@ -39,15 +41,19 @@ contract PairFlash is IUniswapV3FlashCallback, PeripheryPayments {
 
     constructor(ISwapRouter _swapRouter, address _factory, address _WETH9) PeripheryImmutableState(_factory, _WETH9) {
         swapRouter = _swapRouter;
+        emit debug('Contract constructed');
     }
 
     function initFlash(FlashParams memory params) external {
+        emit debug('initFlash called');
         // Get the poolKey, just like my own motions key
         PoolAddress.PoolKey memory poolKey =
             PoolAddress.PoolKey({token0: params.token0, token1: params.token1, fee: params.fee1});
+        emit debug('poolKey assigned');
 
         // Instantiate the pool object, just like my motions
         IUniswapV3Pool pool = IUniswapV3Pool(PoolAddress.computeAddress(factory, poolKey));
+        emit debug('pool object instantiated');
 
         // Call flash to take out loan, will then call uniswapV3FlashCallback passing in data,
         // loan has to be paid back at end
@@ -66,24 +72,30 @@ contract PairFlash is IUniswapV3FlashCallback, PeripheryPayments {
                 })
             )
         );
+        emit debug('pool.flash() completed!');
     }
 
     function uniswapV3FlashCallback(uint256 fee0, uint256 fee1, bytes calldata data) external override {
+        emit debug('uniswapV3FlashCallback called');
         // Decode the data arg
         FlashCallbackData memory decoded = abi.decode(data, (FlashCallbackData));
+        emit debug('data decoded');
 
         // Verify that call originated from genuine v3 pool
         CallbackValidation.verifyCallback(factory, decoded.poolKey);
+        emit debug('call origin verified');
 
         // Approve router to spend tokens
         address token0 = decoded.poolKey.token0;
         address token1 = decoded.poolKey.token1;
         TransferHelper.safeApprove(token0, address(swapRouter), decoded.amount0);
         TransferHelper.safeApprove(token1, address(swapRouter), decoded.amount1);
+        emit debug('tokens approved for swapRouter');
 
         // Set min to make sure swap is profitable
         uint256 amount1Min = LowGasSafeMath.add(decoded.amount1, fee1);
         uint256 amount0Min = LowGasSafeMath.add(decoded.amount0, fee0);
+        emit debug('amountXMins calculated');
 
         // Execute swaps
         uint256 amountOut0 = swapRouter.exactInputSingle(
@@ -97,6 +109,7 @@ contract PairFlash is IUniswapV3FlashCallback, PeripheryPayments {
                 amountOutMinimum: amount0Min,
                 sqrtPriceLimitX96: 0
             }));
+        emit debug('First swap succeeded');
         uint256 amountOut1 = swapRouter.exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: token0,
@@ -108,17 +121,20 @@ contract PairFlash is IUniswapV3FlashCallback, PeripheryPayments {
                 amountOutMinimum: amount1Min,
                 sqrtPriceLimitX96: 0
             }));
+        emit debug('Second swap succeeded');
 
         // Pay back the pool
         // Calc amount owed
         uint256 amount0Owed = LowGasSafeMath.add(decoded.amount0, fee0);
         uint256 amount1Owed = LowGasSafeMath.add(decoded.amount1, fee1);
+        emit debug('amountXOweds calculated');
         // Approve amounts to pool
         TransferHelper.safeApprove(token0, address(this), amount0Owed);
         TransferHelper.safeApprove(token1, address(this), amount1Owed);
         // Have pool retrieve tokens
         if (amount0Owed>0) pay(token0, address(this), msg.sender, amount0Owed); // Contract pays pool
         if (amount1Owed>0) pay(token1, address(this), msg.sender, amount1Owed);
+        emit debug('amountXOweds payed');
 
         // Retrieve profits!
         if (amountOut0>amount0Owed) {
@@ -131,5 +147,6 @@ contract PairFlash is IUniswapV3FlashCallback, PeripheryPayments {
             TransferHelper.safeApprove(token1, address(this), profit1);
             pay(token1, address(this), decoded.payer, profit1);
         }
+        emit debug('Profits retrieved!');
     }
 }
