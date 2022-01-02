@@ -85,76 +85,60 @@ async function getPoolState(poolContract) {
   }
 
 async function main() {
-  // // 1% Token holder: 0x63e64a5d51ec5c065047a71bb69adc8a318a2727
-  // // 0.3% Token holder: 0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e
-  // // BlockBiz Token: 0x92F57C4b19D1946d746Df6D00C137781506E8619
-  // // WETH Token: 0xc778417E063141139Fce010982780140Aa0cD5Ab
+  // 1% Token holder: 0x63e64a5d51ec5c065047a71bb69adc8a318a2727
+  // 0.3% Token holder: 0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e
+  // BlockBiz Token: 0x92F57C4b19D1946d746Df6D00C137781506E8619
+  // WETH Token: 0xc778417E063141139Fce010982780140Aa0cD5Ab
   
-  // const poolAddr1 = "0x63e64a5d51ec5c065047a71bb69adc8a318a2727"; // 1% Fee pool address
-  // const poolAddr03 = "0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e"; // 0.3% Fee pool address
-  // // Create pool contract abstractions
-  // const poolContract1 = new ethers.Contract(poolAddr1,IUniswapV3PoolABI,provider);
-  // const poolContract03 = new ethers.Contract(poolAddr03,IUniswapV3PoolABI,provider);
+  const poolAddr1 = "0x63e64a5d51ec5c065047a71bb69adc8a318a2727"; // 1% Fee pool address
+  const poolAddr03 = "0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e"; // 0.3% Fee pool address
+  // Create pool contract abstractions
+  const poolContract1 = new ethers.Contract(poolAddr1,IUniswapV3PoolABI,provider);
+  const poolContract03 = new ethers.Contract(poolAddr03,IUniswapV3PoolABI,provider);
 
-  //   // Get immutables & states for each pool
-  //   const [immtbls1, state1] = await Promise.all([getPoolImmutables(poolContract1),getPoolState(poolContract1),]);
-  //   const [immtbls03, state03] = await Promise.all([getPoolImmutables(poolContract03),getPoolState(poolContract03),]);
-  //   console.log('Token symmetry test: ');
-  //   console.log('immtbls1.token0: ', immtbls1.token0);
-  //   console.log('immtbls03.token0: ', immtbls03.token0);
+    // Get immutables & states for each pool
+    const [immtbls1, state1] = await Promise.all([getPoolImmutables(poolContract1),getPoolState(poolContract1),]);
+    const [immtbls03, state03] = await Promise.all([getPoolImmutables(poolContract03),getPoolState(poolContract03),]);
+    console.log('Token symmetry test: ');
+    console.log('immtbls1.token0: ', immtbls1.token0);
+    console.log('immtbls03.token0: ', immtbls03.token0);
     
-  //   // Set arbitrary amount in
-  //   const amntIn = 150;
-  //   // Get quotes using callStatic
-  //   const qAmntOut1 = await quoterContract.callStatic.quoteExactInputSingle(immtbls1.token0, immtbls1.token1, immtbls1.fee, amntIn.toString(), 0);
-  //   const qAmntOut03 = await quoterContract.callStatic.quoteExactInputSingle(immtbls03.token1, immtbls03.token0, immtbls03.fee, qAmntOut1.toString(), 0);
+    // Set arbitrary amount in
+    const amntIn = 150;
+    // Get quotes using callStatic
+    const qAmntOut1 = await quoterContract.callStatic.quoteExactInputSingle(immtbls1.token0, immtbls1.token1, immtbls1.fee, amntIn.toString(), 0);
+    const qAmntOut03 = await quoterContract.callStatic.quoteExactInputSingle(immtbls03.token1, immtbls03.token0, immtbls03.fee, qAmntOut1.toString(), 0);
     
-  //   // Based on quotes, order pools
-  //   const profitable = qAmntOut03>amntIn;
-  //   // const TokenA = new Token(4, immtbls1.token0, 0, "BB", "BlockBiz");  
-  //   // const TokenB = new Token(4, immtbls1.token1, 18, "WETH", "Wrapped Ether");
-  //   console.log('Trading in BB to ', immtbls1.fee, 'fee pool, profitability is ', profitable);
-  //   console.log('Amount in: ', amntIn);
-  //   console.log('Amount out: ', qAmntOut03.toString());
+    // Based on quotes, order pools
+    const profitable = qAmntOut03>amntIn;
+    // const TokenA = new Token(4, immtbls1.token0, 0, "BB", "BlockBiz");  
+    // const TokenB = new Token(4, immtbls1.token1, 18, "WETH", "Wrapped Ether");
+    console.log('Trading in BB to ', immtbls1.fee, 'fee pool, profitability is ', profitable);
+    console.log('Amount in: ', amntIn);
+    console.log('Amount out: ', qAmntOut03.toString());
     
-  //   const blah = await quoterContract.callStatic.quoteExactInputSingle(immtbls03.token0, immtbls03.token1, immtbls03.fee, amntIn.toString(), 0);
-  //   const bleh = await quoterContract.callStatic.quoteExactInputSingle(immtbls1.token1, immtbls1.token0, immtbls1.fee, blah.toString(), 0);
-  //   console.log('Reverse pool ordering is...:')
-  //   console.log('Amount in: ', amntIn);
-  //   console.log('Amount out: ', bleh.toString());
-
-
-
-    // Create flash-swap abi & abstraction tuple(address token0, address token1, uint24 fee1, uint256 amount0, uint256 amount1, uint24 fee2, uint24 fee3)
-    let flashSwapABI = [
-      "function initFlash(string params)",
-    ];
+    // const blah = await quoterContract.callStatic.quoteExactInputSingle(immtbls03.token0, immtbls03.token1, immtbls03.fee, amntIn.toString(), 0);
+    // const bleh = await quoterContract.callStatic.quoteExactInputSingle(immtbls1.token1, immtbls1.token0, immtbls1.fee, blah.toString(), 0);
+    // console.log('Reverse pool ordering is...:')
+    // console.log('Amount in: ', amntIn);
+    // console.log('Amount out: ', bleh.toString());
 
     // ATTENTION!!!! NEED TO UPDATE ADDRESS IN ENV AFTER DEPLOYING FLASH-SWAP CONTRACT!!!!!!!--------------------------------------------
-    // const deployer = new ethers.Signer.
-    const flashSwapContract = new ethers.Contract(flashSwapAddress,flashSwapABI,provider);
+    const wallet = new ethers.Wallet(privateKey, provider);
+    const flashSwapContract = new ethers.Contract(flashSwapAddress,pairFlashABI,wallet);
 
+    console.log('Calling initFlash with ', amntIn,' of BB and ', qAmntOut1,' of WETH')
     const flashParams = {
-      token0: ethers.utils.getAddress('0x92F57C4b19D1946d746Df6D00C137781506E8619'),
-      token1: ethers.utils.getAddress('0xc778417E063141139Fce010982780140Aa0cD5Ab'),
-      fee1: 10000,
-      amount0: 1500,
-      amount1: 0,
-      fee2: 10000,
-      fee3: 3000,
+      token0: ethers.utils.getAddress(immtbls1.token0), // BB
+      token1: ethers.utils.getAddress(immtbls1.token1), // WETH
+      fee1: 3000,
+      amount0: amntIn, // Amouont of token0
+      amount1: qAmntOut1, // Amount of token1
+      fee2: 3000, // Trade in token1
+      fee3: 10000, // Trade in token0
     };
-    // const tupFlashParams = ['0x92F57C4b19D1946d746Df6D00C137781506E8619', '0xc778417E063141139Fce010982780140Aa0cD5Ab', 10000, 1500, 0, 10000, 3000];
-    let iface = new ethers.utils.Interface(flashSwapABI);
-    const output = iface.encodeFunctionData('initFlash',[flashParams]);
 
-    const abiCoder = new ethers.utils.AbiCoder();
-    const testParams = abiCoder.encode(
-      [ "string FlashParams", "tuple(uint256 b, string c) d" ],
-        [1234,
-          { b: 5678, c: "Hello World" }
-        ]
-      );
-    const tx = await flashSwapContract.callStatic.initFlash(flashParams);
+    await flashSwapContract.callStatic.initFlash(flashParams);
 
 
   
