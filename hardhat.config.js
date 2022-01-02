@@ -1,5 +1,5 @@
 require('dotenv').config();
-// require("@nomiclabs/hardhat-waffle");
+require("@nomiclabs/hardhat-waffle");
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
@@ -21,7 +21,7 @@ module.exports = {
       accounts: [`${PRIVATE_KEY}`],
     },
     rinkeby: {
-      url: `https://eth-rinkeby.alchemyapi.io/v2/${process.env.RINKERBY_URL}`,
+      url: `https://eth-rinkeby.alchemyapi.io/v2/jhOVe7vIcOktbFb2R7NH6db336E_Guhf`,
       accounts: [`${PRIVATE_KEY}`],
     }
   }
