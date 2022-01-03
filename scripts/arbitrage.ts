@@ -13,7 +13,7 @@ import { abi as QuoterABI } from "@uniswap/v3-periphery/artifacts/contracts/lens
 // PairFlash abi
 import {abi as pairFlashABI} from "./abi/PairFlash.json";
 
-const provider = new ethers.providers.AlchemyProvider('rinkeby',process.env.RINKEBY_URL);
+const provider = ethers.getDefaultProvider('http://localhost:8545');//new ethers.providers.AlchemyProvider('rinkeby',process.env.RINKEBY_URL);
 
 // Create quoter contract abstraction
 const quoterAddress = '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6';
@@ -85,6 +85,8 @@ async function getPoolState(poolContract) {
   }
 
 async function main() {
+    // Set arbitrary amount in
+    const amntIn = 150;
   // 1% Token holder: 0x63e64a5d51ec5c065047a71bb69adc8a318a2727
   // 0.3% Token holder: 0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e
   // BlockBiz Token: 0x92F57C4b19D1946d746Df6D00C137781506E8619
@@ -103,8 +105,6 @@ async function main() {
     console.log('immtbls1.token0: ', immtbls1.token0);
     console.log('immtbls03.token0: ', immtbls03.token0);
     
-    // Set arbitrary amount in
-    const amntIn = 150;
     // Get quotes using callStatic
     const qAmntOut1 = await quoterContract.callStatic.quoteExactInputSingle(immtbls1.token0, immtbls1.token1, immtbls1.fee, amntIn.toString(), 0);
     const qAmntOut03 = await quoterContract.callStatic.quoteExactInputSingle(immtbls03.token1, immtbls03.token0, immtbls03.fee, qAmntOut1.toString(), 0);
@@ -124,7 +124,7 @@ async function main() {
     // console.log('Amount out: ', bleh.toString());
 
     // ATTENTION!!!! NEED TO UPDATE ADDRESS IN ENV AFTER DEPLOYING FLASH-SWAP CONTRACT!!!!!!!--------------------------------------------
-    const wallet = new ethers.Wallet(privateKey, provider);
+    const wallet = new ethers.Wallet(privateKey,provider);
     const flashSwapContract = new ethers.Contract(flashSwapAddress,pairFlashABI,wallet);
 
     console.log('Calling initFlash with ', amntIn,' of BB and ', Math.round(qAmntOut1*1.1),' of WETH')
@@ -140,8 +140,8 @@ async function main() {
 
     const overrides = {
       gasLimit: 3000000,
-      // gasPrice: Number(1000000000), // One Gwei
-      // nonce: 2
+      gasPrice: Number(10000000), // 00 One Gwei
+      // nonce: 0
     }
     await flashSwapContract.initFlash(flashParams, overrides);
 
