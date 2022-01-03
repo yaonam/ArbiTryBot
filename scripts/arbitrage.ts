@@ -10,8 +10,8 @@ import { Pool, Route, Trade } from "@uniswap/v3-sdk";
 import { abi as IUniswapV3PoolABI } from "@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json";
 // Quoter abi
 import { abi as QuoterABI } from "@uniswap/v3-periphery/artifacts/contracts/lens/Quoter.sol/Quoter.json";
-// PairFlash abi
-import {abi as pairFlashABI} from "./abi/PairFlash.json";
+// Contract abi
+import { abi as PairSwapABI } from "../artifacts/contracts/flash-swap.sol/PairSwap.json";
 
 const provider = ethers.getDefaultProvider('http://localhost:8545');//new ethers.providers.AlchemyProvider('rinkeby',process.env.RINKEBY_URL);
 
@@ -64,7 +64,7 @@ async function getPoolImmutables(poolContract: ethers.Contract) {
   }
 
 // https://docs.uniswap.org/protocol/reference/core/interfaces/pool/IUniswapV3PoolState
-async function getPoolState(poolContract) {
+async function getPoolState(poolContract: ethers.Contract) {
     const [liquidity, slot] = await Promise.all([
       poolContract.liquidity(),
       poolContract.slot0(),
@@ -116,26 +116,20 @@ async function main() {
     console.log('Trading in BB to ', immtbls1.fee, 'fee pool, profitability is ', profitable);
     console.log('Amount in: ', amntIn);
     console.log('Amount out: ', qAmntOut03.toString());
-    
-    // const blah = await quoterContract.callStatic.quoteExactInputSingle(immtbls03.token0, immtbls03.token1, immtbls03.fee, amntIn.toString(), 0);
-    // const bleh = await quoterContract.callStatic.quoteExactInputSingle(immtbls1.token1, immtbls1.token0, immtbls1.fee, blah.toString(), 0);
-    // console.log('Reverse pool ordering is...:')
-    // console.log('Amount in: ', amntIn);
-    // console.log('Amount out: ', bleh.toString());
 
     // ATTENTION!!!! NEED TO UPDATE ADDRESS IN ENV AFTER DEPLOYING FLASH-SWAP CONTRACT!!!!!!!--------------------------------------------
     const wallet = new ethers.Wallet(privateKey,provider);
-    const flashSwapContract = new ethers.Contract(flashSwapAddress,pairFlashABI,wallet);
+    const flashSwapContract = new ethers.Contract(flashSwapAddress,PairSwapABI,wallet);
 
     console.log('Calling initFlash with ', amntIn,' of BB and ', Math.round(qAmntOut1*1.1),' of WETH')
     const flashParams = {
-      token0: ethers.utils.getAddress(immtbls1.token0), // BB
+      token0: ethers.utils.getAddress(immtbls1.token0), // BB, token to borrow
       token1: ethers.utils.getAddress(immtbls1.token1), // WETH
-      fee1: 3000, // Pool to borrow from
+      fee0: 3000, // Pool to borrow token0 from
       amount0: amntIn, // Amouont of token0 to borrow
-      amount1: Math.round(qAmntOut1*1.1), // Amount of token1 to borrow
-      fee2: 3000, // Trade in token1
-      fee3: 10000, // Trade in token0
+      amount1: 0, // Amount of token1 to borrow
+      fee1: 10000, // Pool to trade in token0 for token1
+      // fee3: 10000, // Trade in token0
     };
 
     const overrides = {

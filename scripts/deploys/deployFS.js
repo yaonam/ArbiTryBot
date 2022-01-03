@@ -6,7 +6,7 @@ async function main() {
     console.log("Deploying contracts with the account:", deployer.address);  
     console.log("Account balance:", (await deployer.getBalance()).toString());
   
-    const contractName = "PairFlash";
+    const contractName = "PairSwap";
     const addressFactory = '0x1F98431c8aD98523631AE4a59f267346ea31F984';
     const addressRouter = '0xE592427A0AEce92De3Edee1F18E0157C05861564';
     const addressWETH = '0xc778417e063141139fce010982780140aa0cd5ab';
