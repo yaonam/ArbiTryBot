@@ -121,23 +121,26 @@ async function main() {
     const wallet = new ethers.Wallet(privateKey,provider);
     const flashSwapContract = new ethers.Contract(flashSwapAddress,PairSwapABI,wallet);
 
-    console.log('Calling initFlash with ', amntIn,' of BB and ', Math.round(qAmntOut1*1.1),' of WETH')
-    const flashParams = {
-      token0: ethers.utils.getAddress(immtbls1.token0), // BB, token to borrow
-      token1: ethers.utils.getAddress(immtbls1.token1), // WETH
-      fee0: 3000, // Pool to borrow token0 from
+    console.log('Calling initSwap with ', amntIn,' of BB and ', Math.round(qAmntOut1*1.1),' of WETH')
+    const swapParams = {
+      token0: immtbls1.token0, // BB, token to borrow
+      token1: immtbls1.token1, // WETH
+      fee1: 3000, // Pool to borrow token0 from
       amount0: amntIn, // Amouont of token0 to borrow
       amount1: 0, // Amount of token1 to borrow
-      fee1: 10000, // Pool to trade in token0 for token1
-      // fee3: 10000, // Trade in token0
+      fee2: 10000, // Pool to trade in token0 for token1
+      sqrtPriceX96: (state03.sqrtPriceX96.div(100).mul(101)).toString(),
     };
 
     const overrides = {
       gasLimit: 3000000,
       gasPrice: Number(10000000), // 00 One Gwei
       // nonce: 0
-    }
-    await flashSwapContract.initFlash(flashParams, overrides);
+    };
+
+    console.log(swapParams);
+
+    await flashSwapContract.initSwap(swapParams,overrides);
 
 
   

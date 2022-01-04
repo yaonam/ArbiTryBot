@@ -12,6 +12,7 @@ import '@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol';
 import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
 import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
 
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "hardhat/console.sol";
 
 contract PairSwap is IUniswapV3SwapCallback, PeripheryPayments {
@@ -27,6 +28,7 @@ contract PairSwap is IUniswapV3SwapCallback, PeripheryPayments {
         uint256 amount0; // Amount of token0 to borrow
         uint256 amount1; // Amount of token1 to borrow
         uint24 fee2; // Pass on to callback, first swap
+        uint160 sqrtPriceX96;
     }
 
     struct SwapCallbackData {
@@ -35,14 +37,14 @@ contract PairSwap is IUniswapV3SwapCallback, PeripheryPayments {
         address payer;
         PoolAddress.PoolKey poolKey;
         uint24 poolFee2;
-        // uint24 poolFee3;
     }
 
     constructor(ISwapRouter _swapRouter, address _factory, address _WETH9) PeripheryImmutableState(_factory, _WETH9) {
         swapRouter = _swapRouter;
     }
 
-    function initFlash(SwapParams memory params) external {
+    function initSwap(SwapParams memory params) external {
+        console.log('Started initSwap');
         // Get the poolKey, just like my own motions key
         PoolAddress.PoolKey memory poolKey =
             PoolAddress.PoolKey({token0: params.token0, token1: params.token1, fee: params.fee1});
@@ -51,13 +53,16 @@ contract PairSwap is IUniswapV3SwapCallback, PeripheryPayments {
         IUniswapV3Pool pool = IUniswapV3Pool(address(0x88f3265AE26e0eFe50F20b6a2a02BB0DD1ee8b4e)); //PoolAddress.computeAddress(factory, poolKey));
         console.log('Pool address: ',address(pool));
 
+
+
         // Call flash to take out loan, will then call uniswapV3SwapCallback passing in data,
         // loan has to be paid back at end
+        console.log(params.amount0,params.sqrtPriceX96,params.fee2);
         pool.swap(
             address(this),
-            true, // zeroForOne, bool, swap token0 for token1?
-            int256(params.amount0), // pos: exactInput, neg: exactOutput
-            0, // sqrtPriceLimitX96: The Q64.96 sqrt price limit. If zero for one, the price cannot be less than this value after the swap. If one for zero, the price cannot be greater than this value after the swap
+            false, // zeroForOne, bool, swap token0 for token1?
+            int256(-params.amount0), // pos: exactInput, neg: exactOutput
+            params.sqrtPriceX96, // sqrtPriceLimitX96: The Q64.96 sqrt price limit. If zero for one, the price cannot be less than this value after the swap. If one for zero, the price cannot be greater than this value after the swap
             abi.encode(
                 SwapCallbackData({
                     amount0: params.amount0,
@@ -71,7 +76,7 @@ contract PairSwap is IUniswapV3SwapCallback, PeripheryPayments {
     }
 
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
-        console.log('Got to start of callback');
+        console.log('Started callback');
         // Decode the data arg
         SwapCallbackData memory decoded = abi.decode(data, (SwapCallbackData));
 
@@ -85,8 +90,14 @@ contract PairSwap is IUniswapV3SwapCallback, PeripheryPayments {
 
         uint256 amount1 = uint256(amount1Delta);
 
-        console.log(amount0Delta>0,amount1);
-        console.log('About to execute swaps');
+        console.log('Amounts:',decoded.amount0,decoded.amount1);
+
+        console.log(amount0Delta>0,amount1Delta>0,amount1);
+        console.log('About to execute swap');
+
+        console.log('Tokens:', token0, token1);
+        console.log(ERC20(token0).balanceOf(address(this)), ERC20(token1).balanceOf(address(this)));
+        console.log('Fee2:',decoded.poolFee2);
 
         // Execute swap
         uint256 amountOut1 = swapRouter.exactInputSingle(
@@ -97,10 +108,10 @@ contract PairSwap is IUniswapV3SwapCallback, PeripheryPayments {
                 recipient: address(this),
                 deadline: block.timestamp + 200,
                 amountIn: decoded.amount0,
-                amountOutMinimum: uint256(amount1),
+                amountOutMinimum: amount1,
                 sqrtPriceLimitX96: 0
             }));
-            console.log('Executed swaps');
+        console.log('Executed swaps');
 
         // Pay back the pool
         // Approve amounts to pool
