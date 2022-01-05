@@ -19,6 +19,9 @@ const provider = ethers.getDefaultProvider('http://localhost:8545');//new ethers
 const quoterAddress = '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6';
 const quoterContract = new ethers.Contract(quoterAddress, QuoterABI, provider);
 
+// Create pool var to hold addr pairs to compare prices
+const pools = [['0x63e64a5d51ec5c065047a71bb69adc8a318a2727','0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e',]];
+
 // Set var interfaces
 interface Immutables {
     factory: string;
@@ -84,26 +87,31 @@ async function getPoolState(poolContract: ethers.Contract) {
     return PoolState;
   }
 
+// Calculate max amount of token0 to arbitrage using binary search
+async function calcAmountIn() {
+
+}
+
 async function main() {
     // Set arbitrary amount in
     const amntIn = 150;
-  // 1% Token holder: 0x63e64a5d51ec5c065047a71bb69adc8a318a2727
-  // 0.3% Token holder: 0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e
-  // BlockBiz Token: 0x92F57C4b19D1946d746Df6D00C137781506E8619
-  // WETH Token: 0xc778417E063141139Fce010982780140Aa0cD5Ab
-  
-  const poolAddr1 = "0x63e64a5d51ec5c065047a71bb69adc8a318a2727"; // 1% Fee pool address
-  const poolAddr03 = "0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e"; // 0.3% Fee pool address
-  // Create pool contract abstractions
-  const poolContract1 = new ethers.Contract(poolAddr1,IUniswapV3PoolABI,provider);
-  const poolContract03 = new ethers.Contract(poolAddr03,IUniswapV3PoolABI,provider);
+    // 1% Token holder: 0x63e64a5d51ec5c065047a71bb69adc8a318a2727
+    // 0.3% Token holder: 0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e
+    // BlockBiz Token: 0x92F57C4b19D1946d746Df6D00C137781506E8619
+    // WETH Token: 0xc778417E063141139Fce010982780140Aa0cD5Ab
+    
+    const poolAddr1 = "0x63e64a5d51ec5c065047a71bb69adc8a318a2727"; // 1% Fee pool address
+    const poolAddr03 = "0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e"; // 0.3% Fee pool address
+    // Create pool contract abstractions
+    const poolContract1 = new ethers.Contract(poolAddr1,IUniswapV3PoolABI,provider);
+    const poolContract03 = new ethers.Contract(poolAddr03,IUniswapV3PoolABI,provider);
 
     // Get immutables & states for each pool
     const [immtbls1, state1] = await Promise.all([getPoolImmutables(poolContract1),getPoolState(poolContract1),]);
     const [immtbls03, state03] = await Promise.all([getPoolImmutables(poolContract03),getPoolState(poolContract03),]);
-    console.log('Token symmetry test: ');
-    console.log('immtbls1.token0: ', immtbls1.token0);
-    console.log('immtbls03.token0: ', immtbls03.token0);
+          console.log('Token symmetry test: ');
+          console.log('immtbls1.token0: ', immtbls1.token0);
+          console.log('immtbls03.token0: ', immtbls03.token0);
     
     // Get quotes using callStatic
     const qAmntOut1 = await quoterContract.callStatic.quoteExactInputSingle(immtbls1.token0, immtbls1.token1, immtbls1.fee, amntIn.toString(), 0);
@@ -111,22 +119,19 @@ async function main() {
     
     // Based on quotes, order pools
     const profitable = qAmntOut03>amntIn;
-    // const TokenA = new Token(4, immtbls1.token0, 0, "BB", "BlockBiz");  
-    // const TokenB = new Token(4, immtbls1.token1, 18, "WETH", "Wrapped Ether");
-    console.log('Trading in BB to ', immtbls1.fee, 'fee pool, profitability is ', profitable);
-    console.log('Amount in: ', amntIn);
-    console.log('Amount out: ', qAmntOut03.toString());
+          console.log('Trading in BB to ', immtbls1.fee, 'fee pool, profitability is ', profitable);
+          console.log('Amount in: ', amntIn);
+          console.log('Amount out: ', qAmntOut03.toString());
 
     // ATTENTION!!!! NEED TO UPDATE ADDRESS IN ENV AFTER DEPLOYING FLASH-SWAP CONTRACT!!!!!!!--------------------------------------------
     const wallet = new ethers.Wallet(privateKey,provider);
     const flashSwapContract = new ethers.Contract(flashSwapAddress,PairSwapABI,wallet);
 
-    console.log('Calling initSwap with ', amntIn,' of BB and ', Math.round(qAmntOut1*1.1),' of WETH')
     const swapParams = {
       token0: immtbls1.token0, // BB, token to borrow
       token1: immtbls1.token1, // WETH
       fee1: 3000, // Pool to borrow token0 from
-      amount0: amntIn, // Amouont of token0 to borrow
+      amount0: amntIn, // Amount of token0 to borrow
       amount1: 0, // Amount of token1 to borrow
       fee2: 10000, // Pool to trade in token0 for token1
       sqrtPriceX96: (state03.sqrtPriceX96.div(100).mul(101)).toString(),
@@ -138,25 +143,9 @@ async function main() {
       // nonce: 0
     };
 
-    console.log(swapParams);
+          console.log(swapParams);
 
-    await flashSwapContract.initSwap(swapParams,overrides);
-
-
-  
-    // // Create pools
-    // const pool1 = new Pool(TokenA, TokenB, immtbls1.fee, state1.sqrtPriceX96.toString(), state1.liquidity.toString(), state1.tick);
-    // const pool03 = new Pool(TokenA, TokenB, immtbls03.fee, state03.sqrtPriceX96.toString(), state03.liquidity.toString(), state03.tick);
-
-    // // Create swap route, like path?
-    // const swapRoute = new Route([pool1,pool03], TokenA, TokenA);
-    // // Create Unchecked Trade, good for when already have quote
-    // const uncheckedTrade = await Trade.createUncheckedTrade({
-    //   route: swapRoute,
-    //   inputAmount: CurrencyAmount.fromRawAmount(TokenA, amntIn.toString()),
-    //   outputAmount: CurrencyAmount.fromRawAmount(TokenB, qAmntOut03.toString()),
-    //   tradeType: TradeType.EXACT_INPUT,
-    // });
+    // await flashSwapContract.initSwap(swapParams,overrides);
   }
   
   main();
