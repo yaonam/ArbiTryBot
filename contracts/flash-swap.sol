@@ -124,6 +124,6 @@ contract PairSwap is IUniswapV3SwapCallback, PeripheryPayments {
         uint256 profit1 = LowGasSafeMath.sub(amountOut1, amount1);
         TransferHelper.safeApprove(token1, address(this), profit1);
         pay(token1, address(this), decoded.payer, profit1); // Contract pays user
-        console.log('callback execution successful!');
+        console.log('Retrieved',profit1,'tokens!');
     }
 }

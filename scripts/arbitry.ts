@@ -3,15 +3,19 @@ require('dotenv').config();
 const privateKey = process.env.PRIVATE_KEY;
 const flashSwapAddress = process.env.FLASH_SWAP;
 
-import { ethers} from "ethers";
+import { BigNumber, ethers } from "ethers";
 import { Pool, Route, Trade } from "@uniswap/v3-sdk";
-// import { CurrencyAmount, Token, TradeType } from "@uniswap/sdk-core";
+import { CurrencyAmount, Token, TradeType } from "@uniswap/sdk-core";
 // Pool abi
 import { abi as IUniswapV3PoolABI } from "@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json";
 // Quoter abi
 import { abi as QuoterABI } from "@uniswap/v3-periphery/artifacts/contracts/lens/Quoter.sol/Quoter.json";
 // Contract abi
 import { abi as PairSwapABI } from "../artifacts/contracts/flash-swap.sol/PairSwap.json";
+import { JsonRpcBatchProvider } from "@ethersproject/providers";
+// import JSBI from "../node_modules/jsbi/jsbi";
+import JSBI from "@uniswap/sdk-core/node_modules/jsbi"
+import { BigintIsh } from '@uniswap/sdk-core';
 
 const provider = ethers.getDefaultProvider('http://localhost:8545');//new ethers.providers.AlchemyProvider('rinkeby',process.env.RINKEBY_URL);
 
@@ -20,7 +24,11 @@ const quoterAddress = '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6';
 const quoterContract = new ethers.Contract(quoterAddress, QuoterABI, provider);
 
 // Create pool var to hold addr pairs to compare prices
-const pools = [['0x63e64a5d51ec5c065047a71bb69adc8a318a2727','0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e',]];
+    // 1% Token holder: 0x63e64a5d51ec5c065047a71bb69adc8a318a2727
+    // 0.3% Token holder: 0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e
+    // BlockBiz Token: 0x92F57C4b19D1946d746Df6D00C137781506E8619
+    // WETH Token: 0xc778417E063141139Fce010982780140Aa0cD5Ab
+const poolPairs = [['0x63e64a5d51ec5c065047a71bb69adc8a318a2727','0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e',]];
 
 // Set var interfaces
 interface Immutables {
@@ -42,6 +50,13 @@ interface State {
   feeProtocol: number;
   unlocked: boolean;
 }
+
+let poolAddrA, poolAddrB;
+let poolContractA, poolContractB;
+let tokenA0, tokenA1, tokenB0, tokenB1;
+let token0, token1;
+let slot0A, slot0B;
+let liquidityA, liquidityB;
 
 // https://docs.uniswap.org/protocol/reference/core/interfaces/pool/IUniswapV3PoolImmutables
 async function getPoolImmutables(poolContract: ethers.Contract) {
@@ -87,65 +102,92 @@ async function getPoolState(poolContract: ethers.Contract) {
     return PoolState;
   }
 
-// Calculate max amount of token0 to arbitrage using binary search
-async function calcAmountIn() {
-
+// Use quoter to check for profitability
+async function isProfitable (amntInA) {
+    // Set arbitrary amount in
+    const [feeA, feeB] = await Promise.all([poolContractA.fee(), poolContractB.fee()]);
+    const qAmntOutB = await quoterContract.callStatic.quoteExactInputSingle(tokenA0, tokenA1, feeA, amntInA, 0);
+    const qAmntOutA = await quoterContract.callStatic.quoteExactInputSingle(tokenB1, tokenB0, feeB, qAmntOutB, 0);
+    return (Math.abs(qAmntOutA-Number('0x42ad')) > 1 && qAmntOutA > amntInA);
 }
 
-async function main() {
-    // Set arbitrary amount in
-    const amntIn = 150;
-    // 1% Token holder: 0x63e64a5d51ec5c065047a71bb69adc8a318a2727
-    // 0.3% Token holder: 0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e
-    // BlockBiz Token: 0x92F57C4b19D1946d746Df6D00C137781506E8619
-    // WETH Token: 0xc778417E063141139Fce010982780140Aa0cD5Ab
+// Compare prices in pools to see if there's an opp
+// Args: Pair of pool addrs in an array
+async function checkPrices(poolPair: [string, string]) {
+    console.log('Checking prices...');
+    [poolAddrA, poolAddrB] = poolPair;
+    poolContractA = new ethers.Contract(poolAddrA,IUniswapV3PoolABI,provider);
+    poolContractB = new ethers.Contract(poolAddrB,IUniswapV3PoolABI,provider);
+    [tokenA0, tokenA1, tokenB0, tokenB1] = await Promise.all([poolContractA.token0(),poolContractA.token1(),poolContractB.token0(),poolContractB.token1()]);
     
-    const poolAddr1 = "0x63e64a5d51ec5c065047a71bb69adc8a318a2727"; // 1% Fee pool address
-    const poolAddr03 = "0x88f3265ae26e0efe50f20b6a2a02bb0dd1ee8b4e"; // 0.3% Fee pool address
-    // Create pool contract abstractions
-    const poolContract1 = new ethers.Contract(poolAddr1,IUniswapV3PoolABI,provider);
-    const poolContract03 = new ethers.Contract(poolAddr03,IUniswapV3PoolABI,provider);
+    if (await isProfitable(150)) {
+      console.log('Opportunity found!')
+      executeSwap();
+    }
+}
 
-    // Get immutables & states for each pool
-    const [immtbls1, state1] = await Promise.all([getPoolImmutables(poolContract1),getPoolState(poolContract1),]);
-    const [immtbls03, state03] = await Promise.all([getPoolImmutables(poolContract03),getPoolState(poolContract03),]);
-          console.log('Token symmetry test: ');
-          console.log('immtbls1.token0: ', immtbls1.token0);
-          console.log('immtbls03.token0: ', immtbls03.token0);
-    
-    // Get quotes using callStatic
-    const qAmntOut1 = await quoterContract.callStatic.quoteExactInputSingle(immtbls1.token0, immtbls1.token1, immtbls1.fee, amntIn.toString(), 0);
-    const qAmntOut03 = await quoterContract.callStatic.quoteExactInputSingle(immtbls03.token1, immtbls03.token0, immtbls03.fee, qAmntOut1.toString(), 0);
-    
-    // Based on quotes, order pools
-    const profitable = qAmntOut03>amntIn;
-          console.log('Trading in BB to ', immtbls1.fee, 'fee pool, profitability is ', profitable);
-          console.log('Amount in: ', amntIn);
-          console.log('Amount out: ', qAmntOut03.toString());
+// Calculate max amount of token0 to arbitrage using binary search
+async function calcAmountIn() {
+    let counter = 0;
+    let [small, big] = [50, 500];
+    while (counter < 17) {
+      let medium = Math.round((big+small)/2);
+      console.log(small,medium,big);
+      if (await isProfitable(medium)) {
+        small = medium;
+      } else {
+        big = medium;
+      }
+      counter++;
+    }
+    console.log('Calculated optimum:',small);
+    return small;
+}
 
+async function executeSwap() {
+    console.log('Executing swap...');
     // ATTENTION!!!! NEED TO UPDATE ADDRESS IN ENV AFTER DEPLOYING FLASH-SWAP CONTRACT!!!!!!!--------------------------------------------
     const wallet = new ethers.Wallet(privateKey,provider);
     const flashSwapContract = new ethers.Contract(flashSwapAddress,PairSwapABI,wallet);
 
+    console.log('Calculating optimum...')
+    const optimum = await calcAmountIn();
+    
     const swapParams = {
-      token0: immtbls1.token0, // BB, token to borrow
-      token1: immtbls1.token1, // WETH
+      token0: tokenA0, // BB, token to borrow
+      token1: tokenA1, // WETH
       fee1: 3000, // Pool to borrow token0 from
-      amount0: amntIn, // Amount of token0 to borrow
+      amount0: optimum, // Amount of token0 to borrow
       amount1: 0, // Amount of token1 to borrow
       fee2: 10000, // Pool to trade in token0 for token1
-      sqrtPriceX96: (state03.sqrtPriceX96.div(100).mul(101)).toString(),
+      sqrtPriceX96: ((await poolContractB.slot0())[0].div(100).mul(101)).toString(),
     };
-
+    
     const overrides = {
       gasLimit: 3000000,
       gasPrice: Number(10000000), // 00 One Gwei
       // nonce: 0
     };
 
-          console.log(swapParams);
+    console.log('Initiating swap with',swapParams.amount0,'of',swapParams.token0);
+    const tx = await flashSwapContract.initSwap(swapParams,overrides);
+    console.log(tx);
+    await tx.wait();
+    console.log('Swap successful!');
+}
 
-    // await flashSwapContract.initSwap(swapParams,overrides);
-  }
-  
-  main();
+const ArbiTryBot = async () => {
+    console.log('Bot starting...')
+    // Check prices for each pair
+    provider.on('block', async (blockNumber) => {
+      try {
+        console.log(blockNumber);
+        poolPairs.forEach(checkPrices);
+      } catch (err) {
+        console.error(err);
+      }
+    });
+};
+
+ArbiTryBot();
+// poolPairs.forEach(checkPrices);
