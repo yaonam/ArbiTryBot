@@ -14,7 +14,7 @@ async function main() {
     const Contract = await ethers.getContractFactory(contractName);
     const overrides = {
         // gasPrice: Number(1000000000), // One Gwei
-        // nonce: 2
+        nonce: 16
     }
     const contract = await Contract.deploy(addressRouter,addressFactory,addressWETH,overrides);
   

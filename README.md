@@ -8,6 +8,7 @@ npm install -D tslib @types/node
 
 npx ts-node scripts/arbitrage.ts
 
+PairSwap Address: 0x655ba030a8EfaD19309dCB9f5193Ad42c2ABBBA8
 PairFlash Address: 0xD7A7f3C4FEf0E556A772a18B947C807D302844Da
 PairFlashTest Address: 0xF24aD4587C2411cE6854a9182F2D161373B3E14C
 SingleSwap Address

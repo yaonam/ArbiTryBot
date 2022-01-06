@@ -17,7 +17,7 @@ import { JsonRpcBatchProvider } from "@ethersproject/providers";
 import JSBI from "@uniswap/sdk-core/node_modules/jsbi"
 import { BigintIsh } from '@uniswap/sdk-core';
 
-const provider = ethers.getDefaultProvider('http://localhost:8545');//new ethers.providers.AlchemyProvider('rinkeby',process.env.RINKEBY_URL);
+const provider = new ethers.providers.AlchemyProvider('rinkeby',process.env.RINKEBY_URL); //ethers.getDefaultProvider('http://localhost:8545');
 
 // Create quoter contract abstraction
 const quoterAddress = '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6';
@@ -57,6 +57,8 @@ let tokenA0, tokenA1, tokenB0, tokenB1;
 let token0, token1;
 let slot0A, slot0B;
 let liquidityA, liquidityB;
+
+let nounce = 21;
 
 // https://docs.uniswap.org/protocol/reference/core/interfaces/pool/IUniswapV3PoolImmutables
 async function getPoolImmutables(poolContract: ethers.Contract) {
@@ -130,7 +132,7 @@ async function checkPrices(poolPair: [string, string]) {
 async function calcAmountIn() {
     let counter = 0;
     let [small, big] = [50, 500];
-    while (counter < 17) {
+    while (counter < 7) {
       let medium = Math.round((big+small)/2);
       console.log(small,medium,big);
       if (await isProfitable(medium)) {
@@ -164,16 +166,17 @@ async function executeSwap() {
     };
     
     const overrides = {
-      gasLimit: 3000000,
-      gasPrice: Number(10000000), // 00 One Gwei
-      // nonce: 0
+      // gasLimit: 3000000,
+      // gasPrice: Number(10000000), // 00 One Gwei
+      nonce: nounce
     };
 
     console.log('Initiating swap with',swapParams.amount0,'of',swapParams.token0);
     const tx = await flashSwapContract.initSwap(swapParams,overrides);
     console.log(tx);
     await tx.wait();
-    console.log('Swap successful!');
+    console.log('Swap successful!',nounce);
+    nounce = nounce + 1;
 }
 
 const ArbiTryBot = async () => {
